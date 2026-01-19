@@ -162,6 +162,7 @@ The **Ansible inventory** is a fundamental concept in Ansible. It represents the
    [webservers]
    web1.example.com
    web2.example.com
+   ubuntu@<ip>
 
    [dbservers]
    db1.example.com
