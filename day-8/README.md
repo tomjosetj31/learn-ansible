@@ -1038,3 +1038,416 @@ Debug commands:
 8. **Graceful degradation** - Handle partial failures appropriately
 
 Master error handling to build resilient, production-ready automation!
+
+---
+
+## Practice Exercises
+
+### Exercise 1: Basic Error Handling
+
+Create a playbook that attempts to install a package and handles potential failures:
+
+```yaml
+---
+# exercise1.yml - Practice basic error handling
+- name: Package Installation with Error Handling
+  hosts: localhost
+  connection: local
+  become: yes
+  
+  vars:
+    packages_to_install:
+      - nginx
+      - nonexistent-package-12345
+      - curl
+  
+  tasks:
+    # TODO: Install each package and handle failures gracefully
+    # - Use a loop to iterate over packages
+    # - Use ignore_errors to continue on failure
+    # - Register results and display which packages failed
+    
+    - name: Attempt to install packages
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ packages_to_install }}"
+      register: install_results
+      ignore_errors: yes
+      
+    - name: Report failed installations
+      ansible.builtin.debug:
+        msg: "Failed to install: {{ item.item }}"
+      loop: "{{ install_results.results }}"
+      when: item is failed
+```
+
+**Challenge**: Modify the playbook to retry failed packages once before giving up.
+
+---
+
+### Exercise 2: Block/Rescue/Always
+
+Create a deployment playbook with proper rollback:
+
+```yaml
+---
+# exercise2.yml - Practice block/rescue/always
+- name: Application Deployment Exercise
+  hosts: localhost
+  connection: local
+  
+  vars:
+    app_name: mywebapp
+    app_version: "1.0.0"
+    deploy_dir: /tmp/deploy-exercise
+  
+  tasks:
+    - name: Setup deployment directory
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}"
+        state: directory
+        
+    - name: Deployment with rollback capability
+      block:
+        # TODO: Add deployment steps
+        - name: Create version file
+          ansible.builtin.copy:
+            content: "Version: {{ app_version }}\n"
+            dest: "{{ deploy_dir }}/version.txt"
+            
+        - name: Simulate deployment step
+          ansible.builtin.command: "echo 'Deploying {{ app_name }}'"
+          changed_when: false
+          
+        # Uncomment to simulate failure:
+        # - name: Simulated failure
+        #   ansible.builtin.command: /bin/false
+          
+        - name: Mark deployment as successful
+          ansible.builtin.copy:
+            content: "Deployment successful at {{ ansible_date_time.iso8601 }}\n"
+            dest: "{{ deploy_dir }}/status.txt"
+            
+      rescue:
+        - name: Rollback - remove version file
+          ansible.builtin.file:
+            path: "{{ deploy_dir }}/version.txt"
+            state: absent
+            
+        - name: Log rollback
+          ansible.builtin.copy:
+            content: "Rollback executed at {{ ansible_date_time.iso8601 }}\n"
+            dest: "{{ deploy_dir }}/rollback.log"
+            
+        - name: Notify about failure
+          ansible.builtin.debug:
+            msg: "Deployment failed! Rollback completed."
+            
+      always:
+        - name: Display final status
+          ansible.builtin.debug:
+            msg: "Deployment process completed for {{ app_name }}"
+```
+
+**Challenge**: Add a pre-deployment backup step that saves the previous version.
+
+---
+
+### Exercise 3: Retry Until Success
+
+Create a playbook that waits for a service to become available:
+
+```yaml
+---
+# exercise3.yml - Practice retry/until
+- name: Wait for Service Exercise
+  hosts: localhost
+  connection: local
+  
+  vars:
+    service_port: 8080
+    max_retries: 5
+    retry_delay: 2
+  
+  tasks:
+    # Start a simple HTTP server in background for testing
+    - name: Start test HTTP server
+      ansible.builtin.shell: |
+        cd /tmp && python3 -m http.server {{ service_port }} &
+        echo $! > /tmp/http-server.pid
+      async: 10
+      poll: 0
+      changed_when: false
+      
+    - name: Wait for HTTP server to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:{{ service_port }}"
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: "{{ max_retries }}"
+      delay: "{{ retry_delay }}"
+      
+    - name: Confirm service is available
+      ansible.builtin.debug:
+        msg: "Service is responding on port {{ service_port }}"
+        
+    - name: Cleanup - stop test server
+      ansible.builtin.shell: |
+        if [ -f /tmp/http-server.pid ]; then
+          kill $(cat /tmp/http-server.pid) 2>/dev/null || true
+          rm /tmp/http-server.pid
+        fi
+      changed_when: false
+```
+
+**Challenge**: Add a fallback that tries an alternate port if the primary fails.
+
+---
+
+### Exercise 4: Custom Failure Conditions
+
+Create a playbook that validates system requirements:
+
+```yaml
+---
+# exercise4.yml - Practice custom failure conditions
+- name: System Requirements Validation
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  
+  vars:
+    min_memory_mb: 512
+    min_disk_gb: 1
+    required_commands:
+      - python3
+      - curl
+      - git
+  
+  tasks:
+    - name: Check memory requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_memtotal_mb >= min_memory_mb
+        fail_msg: "Insufficient memory: {{ ansible_memtotal_mb }}MB < {{ min_memory_mb }}MB required"
+        success_msg: "Memory check passed: {{ ansible_memtotal_mb }}MB available"
+        
+    - name: Check for required commands
+      ansible.builtin.command: "which {{ item }}"
+      loop: "{{ required_commands }}"
+      register: command_check
+      failed_when: false
+      changed_when: false
+      
+    - name: Report missing commands
+      ansible.builtin.fail:
+        msg: "Missing required command: {{ item.item }}"
+      loop: "{{ command_check.results }}"
+      when: item.rc != 0
+      
+    - name: Check disk space
+      ansible.builtin.shell: df -BG / | tail -1 | awk '{print $4}' | tr -d 'G'
+      register: disk_space
+      changed_when: false
+      failed_when: disk_space.stdout | int < min_disk_gb
+      
+    - name: All requirements passed
+      ansible.builtin.debug:
+        msg: "System meets all requirements!"
+```
+
+**Challenge**: Add network connectivity checks (ping to external host).
+
+---
+
+### Exercise 5: Complete Error Handling Project
+
+Build a complete playbook that:
+1. Validates prerequisites
+2. Creates backups
+3. Deploys an application
+4. Handles failures with rollback
+5. Sends notifications
+
+```yaml
+---
+# exercise5.yml - Complete error handling project
+- name: Production-Ready Deployment
+  hosts: localhost
+  connection: local
+  
+  vars:
+    app_name: demo-app
+    deploy_base: /tmp/demo-deploy
+    current_version: "1.0.0"
+    new_version: "1.1.0"
+    simulate_failure: false  # Set to true to test failure handling
+  
+  tasks:
+    # Phase 1: Prerequisites
+    - name: "Phase 1: Validate Prerequisites"
+      block:
+        - name: Create base directories
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+          loop:
+            - "{{ deploy_base }}"
+            - "{{ deploy_base }}/backups"
+            - "{{ deploy_base }}/app"
+            - "{{ deploy_base }}/logs"
+            
+        - name: Create initial app version (if not exists)
+          ansible.builtin.copy:
+            content: |
+              App: {{ app_name }}
+              Version: {{ current_version }}
+              Deployed: {{ ansible_date_time.iso8601 }}
+            dest: "{{ deploy_base }}/app/version.txt"
+            force: no
+            
+      rescue:
+        - name: Prerequisites failed
+          ansible.builtin.fail:
+            msg: "Failed to set up prerequisites. Cannot continue."
+            
+    # Phase 2: Backup
+    - name: "Phase 2: Create Backup"
+      block:
+        - name: Create backup of current version
+          ansible.builtin.archive:
+            path: "{{ deploy_base }}/app"
+            dest: "{{ deploy_base }}/backups/backup-{{ ansible_date_time.epoch }}.tar.gz"
+          register: backup_result
+          
+        - name: Record backup location
+          ansible.builtin.set_fact:
+            backup_file: "{{ backup_result.dest }}"
+            
+      rescue:
+        - name: Backup failed - abort deployment
+          ansible.builtin.fail:
+            msg: "Backup failed. Deployment aborted for safety."
+            
+    # Phase 3: Deployment
+    - name: "Phase 3: Deploy New Version"
+      block:
+        - name: Update version file
+          ansible.builtin.copy:
+            content: |
+              App: {{ app_name }}
+              Version: {{ new_version }}
+              Deployed: {{ ansible_date_time.iso8601 }}
+              Previous: {{ current_version }}
+            dest: "{{ deploy_base }}/app/version.txt"
+            
+        - name: Simulate deployment task
+          ansible.builtin.command: "echo 'Deploying {{ new_version }}...'"
+          changed_when: true
+          
+        - name: Simulate failure (if enabled)
+          ansible.builtin.fail:
+            msg: "Simulated deployment failure!"
+          when: simulate_failure
+          
+        - name: Verify deployment
+          ansible.builtin.command: "cat {{ deploy_base }}/app/version.txt"
+          register: verify_result
+          failed_when: "new_version not in verify_result.stdout"
+          changed_when: false
+          
+        - name: Mark deployment successful
+          ansible.builtin.set_fact:
+            deployment_status: "success"
+            
+      rescue:
+        - name: Deployment failed - initiating rollback
+          ansible.builtin.debug:
+            msg: "Deployment failed! Rolling back to backup..."
+            
+        - name: Restore from backup
+          ansible.builtin.unarchive:
+            src: "{{ backup_file }}"
+            dest: "{{ deploy_base }}"
+            remote_src: yes
+          when: backup_file is defined
+          
+        - name: Mark deployment as failed
+          ansible.builtin.set_fact:
+            deployment_status: "failed"
+            
+      always:
+        - name: Log deployment result
+          ansible.builtin.lineinfile:
+            path: "{{ deploy_base }}/logs/deployments.log"
+            line: "{{ ansible_date_time.iso8601 }} | {{ new_version }} | {{ deployment_status | default('unknown') }}"
+            create: yes
+            
+    # Phase 4: Report
+    - name: "Phase 4: Final Report"
+      block:
+        - name: Show deployment summary
+          ansible.builtin.debug:
+            msg: |
+              ================================
+              DEPLOYMENT SUMMARY
+              ================================
+              Application: {{ app_name }}
+              Target Version: {{ new_version }}
+              Status: {{ deployment_status | default('unknown') | upper }}
+              Backup: {{ backup_file | default('N/A') }}
+              Time: {{ ansible_date_time.iso8601 }}
+              ================================
+              
+        - name: Fail play if deployment failed
+          ansible.builtin.fail:
+            msg: "Deployment failed and was rolled back"
+          when: deployment_status | default('failed') == 'failed'
+```
+
+**How to use:**
+```bash
+# Run successful deployment
+ansible-playbook exercise5.yml
+
+# Test failure handling
+ansible-playbook exercise5.yml -e "simulate_failure=true"
+```
+
+---
+
+### Exercise Solutions Tips
+
+1. **Test incrementally** - Run playbooks with `--check` first
+2. **Use verbose mode** - Add `-v`, `-vv`, or `-vvv` for debugging
+3. **Start simple** - Get basic functionality working before adding error handling
+4. **Test failure paths** - Deliberately cause failures to verify rescue blocks work
+5. **Review logs** - Check output files to verify behavior
+
+---
+
+## Additional Resources
+
+### Official Documentation
+
+- [Ansible Documentation](https://docs.ansible.com/)
+- [Error Handling](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_error_handling.html)
+- [Blocks](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_blocks.html)
+- [Module Index](https://docs.ansible.com/ansible/latest/collections/index_module.html)
+
+### Community Resources
+
+- [Ansible Galaxy](https://galaxy.ansible.com/) - Find roles and collections
+- [Ansible GitHub](https://github.com/ansible/ansible) - Source code and issues
+- [r/ansible](https://www.reddit.com/r/ansible/) - Reddit community
+
+### Practice Environments
+
+- Use Vagrant or Docker to create test environments
+- AWS Free Tier for cloud practice
+- LocalStack for AWS service emulation
+
+Keep practicing to become proficient in Ansible automation!
