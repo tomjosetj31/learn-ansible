@@ -1,3 +1,137 @@
+# Day 1: Introduction to Ansible
+
+## Installing Ansible
+
+Before you can use Ansible, you need to install it on your **control node** (the machine from which you'll run Ansible commands).
+
+### Prerequisites
+
+- Python 3.8 or higher
+- SSH access to managed nodes
+- A Linux, macOS, or WSL environment (Ansible control node cannot run on Windows directly)
+
+### Installation Methods
+
+#### Ubuntu/Debian
+
+```bash
+# Update package index
+sudo apt update
+
+# Install software-properties-common
+sudo apt install software-properties-common
+
+# Add Ansible PPA
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+
+# Install Ansible
+sudo apt install ansible
+
+# Verify installation
+ansible --version
+```
+
+#### RHEL/CentOS/Fedora
+
+```bash
+# RHEL/CentOS 8+
+sudo dnf install ansible
+
+# Fedora
+sudo dnf install ansible
+
+# Verify installation
+ansible --version
+```
+
+#### macOS
+
+```bash
+# Using Homebrew
+brew install ansible
+
+# Verify installation
+ansible --version
+```
+
+#### Using pip (All Platforms)
+
+```bash
+# Install pip if not present
+python3 -m ensurepip --upgrade
+
+# Install Ansible via pip
+pip3 install ansible
+
+# Or install in a virtual environment (recommended)
+python3 -m venv ansible-env
+source ansible-env/bin/activate
+pip install ansible
+
+# Verify installation
+ansible --version
+```
+
+### Verify Installation
+
+```bash
+# Check Ansible version
+ansible --version
+
+# Example output:
+# ansible [core 2.15.0]
+#   config file = /etc/ansible/ansible.cfg
+#   configured module search path = ['/home/user/.ansible/plugins/modules']
+#   ansible python module location = /usr/lib/python3/dist-packages/ansible
+#   ansible collection location = /home/user/.ansible/collections
+#   executable location = /usr/bin/ansible
+#   python version = 3.10.12
+
+# Test with a simple ping to localhost
+ansible localhost -m ping
+
+# Expected output:
+# localhost | SUCCESS => {
+#     "changed": false,
+#     "ping": "pong"
+# }
+```
+
+### Setting Up SSH Keys
+
+For Ansible to connect to managed nodes, set up SSH key-based authentication:
+
+```bash
+# Generate SSH key pair (if you don't have one)
+ssh-keygen -t ed25519 -C "ansible"
+
+# Copy public key to managed nodes
+ssh-copy-id user@managed-node-ip
+
+# Test SSH connection
+ssh user@managed-node-ip
+```
+
+### Quick Start Test
+
+Create a simple inventory and test connectivity:
+
+```bash
+# Create a test inventory file
+echo "[test]
+localhost ansible_connection=local" > inventory.ini
+
+# Run a ping test
+ansible -i inventory.ini all -m ping
+
+# Run a simple command
+ansible -i inventory.ini all -m command -a "whoami"
+```
+
+Congratulations! You now have Ansible installed and ready to use.
+
+---
+
 ## What is Ansible?
 
 Ansible is an open-source automation tool used primarily for configuration management, application deployment, orchestration, and task automation. It enables IT administrators and DevOps engineers to automate repetitive tasks across a large number of servers and environments, improving efficiency and reducing manual errors. Ansible uses a simple, human-readable language (YAML) to describe automation jobs in the form of "playbooks," making it accessible and easy to learn.

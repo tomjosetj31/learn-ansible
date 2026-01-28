@@ -1,6 +1,51 @@
-# Ansible Galaxy
+# Day 5: Ansible Galaxy & Ansible Lint
 
-Ansible Galaxy is a hub for sharing roles.
+## Ansible Galaxy
+
+**Ansible Galaxy** is the official hub for finding, sharing, and downloading Ansible roles and collections. It's like a package manager for Ansible content.
+
+Website: [galaxy.ansible.com](https://galaxy.ansible.com)
+
+---
+
+## Why Use Galaxy?
+
+| Benefit | Description |
+|---------|-------------|
+| **Save Time** | Use pre-built roles instead of writing from scratch |
+| **Best Practices** | Community-maintained content follows standards |
+| **Versioning** | Pin specific versions for reproducibility |
+| **Quality** | Popular roles are battle-tested |
+| **Documentation** | Well-documented usage and variables |
+
+---
+
+## Searching for Roles
+
+### Command Line
+
+```bash
+# Search for roles
+ansible-galaxy search nginx
+
+# Search with filters
+ansible-galaxy search nginx --author geerlingguy
+
+# Get information about a role
+ansible-galaxy info geerlingguy.nginx
+```
+
+### Web Interface
+
+Browse [galaxy.ansible.com](https://galaxy.ansible.com) to:
+- Search by keyword, platform, or category
+- View download counts and ratings
+- Read documentation and source code
+- Check compatibility and dependencies
+
+---
+
+## Installing Roles from Galaxy
 
 ### Installing Roles from Galaxy
 
@@ -352,3 +397,247 @@ ansible-galaxy role list
 ```
 
 Roles are essential for creating maintainable, reusable Ansible automation. Master them to build scalable infrastructure as code!
+
+---
+
+## Ansible Lint
+
+**Ansible Lint** is a command-line tool that checks playbooks, roles, and collections for best practices and potential errors.
+
+### Installing Ansible Lint
+
+```bash
+# Install via pip
+pip install ansible-lint
+
+# Or with pipx (isolated environment)
+pipx install ansible-lint
+
+# Verify installation
+ansible-lint --version
+```
+
+### Basic Usage
+
+```bash
+# Lint a playbook
+ansible-lint playbook.yml
+
+# Lint a role
+ansible-lint roles/webserver/
+
+# Lint with specific rules
+ansible-lint -r /path/to/rules playbook.yml
+
+# List all rules
+ansible-lint -L
+
+# Lint with specific tags
+ansible-lint -t yaml playbook.yml
+```
+
+### Common Lint Rules
+
+| Rule | Description |
+|------|-------------|
+| `yaml` | YAML syntax and formatting |
+| `name` | Task naming conventions |
+| `command-instead-of-module` | Use modules instead of commands |
+| `no-changed-when` | Set `changed_when` for commands |
+| `risky-file-permissions` | Avoid world-writable files |
+| `package-latest` | Avoid `state: latest` in production |
+| `no-jinja-when` | Don't use Jinja2 in `when` |
+
+### Example Output
+
+```bash
+$ ansible-lint playbook.yml
+
+WARNING  Listing 5 violation(s) that are fatal
+playbook.yml:5 Task/Handler: Install packages
+name[missing]: All tasks should be named.
+
+playbook.yml:10 Task/Handler: Run setup script
+no-changed-when: Commands should not change things if nothing needs doing.
+
+playbook.yml:15 Task/Handler: Copy config
+risky-file-permissions: File permissions unset or incorrect.
+
+roles/webserver/tasks/main.yml:3 Task/Handler: Install nginx
+package-latest: Package installs should not use latest.
+
+roles/webserver/tasks/main.yml:12 Task/Handler: shell task
+command-instead-of-shell: Use shell only when shell functionality is required.
+```
+
+### Fixing Common Issues
+
+```yaml
+# BAD - Missing name
+- apt:
+    name: nginx
+    state: present
+
+# GOOD - Has descriptive name
+- name: Install nginx web server
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+# BAD - Using command instead of module
+- name: Create directory
+  command: mkdir -p /opt/myapp
+
+# GOOD - Using file module
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/myapp
+    state: directory
+    mode: '0755'
+
+# BAD - No changed_when
+- name: Check status
+  command: /opt/app/status.sh
+  register: result
+
+# GOOD - With changed_when
+- name: Check application status
+  ansible.builtin.command: /opt/app/status.sh
+  register: result
+  changed_when: false
+
+# BAD - Package latest
+- name: Install packages
+  apt:
+    name: nginx
+    state: latest
+
+# GOOD - Package present (pin version if needed)
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+```
+
+### Configuration File
+
+Create `.ansible-lint` in your project root:
+
+```yaml
+# .ansible-lint configuration
+---
+# Exclude paths from linting
+exclude_paths:
+  - .cache/
+  - .git/
+  - molecule/
+  - tests/
+
+# Skip specific rules
+skip_list:
+  - yaml[line-length]  # Allow long lines
+  - name[casing]       # Allow any case in names
+
+# Warn only (don't fail) for these rules
+warn_list:
+  - experimental
+
+# Enable specific tags
+enable_list:
+  - no-same-owner
+
+# Offline mode (don't download collections)
+offline: false
+
+# Set custom rules directory
+# rulesdir:
+#   - ./custom_rules/
+
+# Specify profile (min, basic, moderate, safety, shared, production)
+profile: moderate
+```
+
+### Profiles
+
+Ansible Lint has predefined profiles with different strictness levels:
+
+| Profile | Description |
+|---------|-------------|
+| `min` | Minimal rules, syntax only |
+| `basic` | Basic best practices |
+| `moderate` | Recommended for most projects |
+| `safety` | Security-focused rules |
+| `shared` | For shared/public content |
+| `production` | Strictest, production-ready |
+
+```bash
+# Use a specific profile
+ansible-lint -p production playbook.yml
+```
+
+### Integrating with CI/CD
+
+**GitHub Actions:**
+```yaml
+# .github/workflows/lint.yml
+name: Ansible Lint
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run ansible-lint
+        uses: ansible/ansible-lint-action@v6
+```
+
+**Pre-commit Hook:**
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v6.17.0
+    hooks:
+      - id: ansible-lint
+        files: \.(yaml|yml)$
+```
+
+### Best Practices for Clean Lint
+
+1. **Always name tasks** - Every task should have a descriptive name
+2. **Use FQCN** - Use fully qualified collection names (e.g., `ansible.builtin.apt`)
+3. **Set changed_when** - For command/shell tasks that don't change state
+4. **Use modules** - Prefer modules over raw commands
+5. **Explicit permissions** - Always set file modes explicitly
+6. **Avoid `latest`** - Use `present` or pin versions
+7. **Quote strings** - Especially paths and values with special characters
+
+---
+
+## Summary
+
+| Tool | Purpose |
+|------|---------|
+| **Galaxy** | Find and share roles/collections |
+| **ansible-lint** | Check for best practices and errors |
+
+### Key Commands
+
+```bash
+# Galaxy
+ansible-galaxy search nginx
+ansible-galaxy role install geerlingguy.nginx
+ansible-galaxy collection install community.docker
+ansible-galaxy install -r requirements.yml
+
+# Lint
+ansible-lint playbook.yml
+ansible-lint -L                    # List rules
+ansible-lint -p production .       # Use production profile
+ansible-lint --fix playbook.yml   # Auto-fix some issues
+```
+
+Use Galaxy to leverage community content and ansible-lint to ensure quality!

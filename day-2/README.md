@@ -1,3 +1,144 @@
+# Day 2: Ansible Architecture & Configuration
+
+## The ansible.cfg Configuration File
+
+The `ansible.cfg` file is Ansible's main configuration file. It controls default behaviors like inventory location, SSH settings, privilege escalation, and more.
+
+### Configuration File Locations (Priority Order)
+
+Ansible looks for configuration in this order (first found wins):
+
+1. `ANSIBLE_CONFIG` environment variable (if set)
+2. `./ansible.cfg` (current directory)
+3. `~/.ansible.cfg` (home directory)
+4. `/etc/ansible/ansible.cfg` (system-wide)
+
+**Best Practice**: Keep `ansible.cfg` in your project directory for project-specific settings.
+
+### Creating ansible.cfg
+
+```ini
+# ansible.cfg - Project configuration file
+
+[defaults]
+# Inventory file location
+inventory = ./inventory/hosts
+
+# Roles path
+roles_path = ./roles
+
+# Disable host key checking (useful for lab environments)
+host_key_checking = False
+
+# Disable retry files
+retry_files_enabled = False
+
+# Default remote user
+remote_user = ansible
+
+# Increase timeout for slow connections
+timeout = 30
+
+# Forks - number of parallel processes
+forks = 10
+
+# Disable cowsay (optional fun feature)
+nocows = True
+
+# Callback plugin for better output
+stdout_callback = yaml
+
+# Gather facts in smart mode
+gathering = smart
+
+# Cache facts for better performance
+fact_caching = jsonfile
+fact_caching_connection = ./facts_cache
+fact_caching_timeout = 86400
+
+# Deprecation warnings
+deprecation_warnings = True
+
+# Interpreter discovery
+interpreter_python = auto_silent
+
+[privilege_escalation]
+# Enable become (sudo) by default
+become = True
+become_method = sudo
+become_user = root
+become_ask_pass = False
+
+[ssh_connection]
+# SSH pipelining for better performance
+pipelining = True
+
+# SSH arguments
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s
+
+# Control path for SSH multiplexing
+control_path = /tmp/ansible-%%h-%%p-%%r
+
+[inventory]
+# Enable inventory plugins
+enable_plugins = host_list, script, auto, yaml, ini
+
+[colors]
+# Customize output colors
+ok = green
+changed = yellow
+error = red
+warn = purple
+```
+
+### Common Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `inventory` | Default inventory file path | `/etc/ansible/hosts` |
+| `remote_user` | Default SSH user | Current user |
+| `host_key_checking` | Verify SSH host keys | `True` |
+| `forks` | Parallel processes | `5` |
+| `timeout` | SSH connection timeout | `10` |
+| `become` | Enable privilege escalation | `False` |
+| `roles_path` | Where to find roles | `./roles` |
+
+### Environment Variables
+
+You can also set configuration via environment variables:
+
+```bash
+# Set inventory file
+export ANSIBLE_INVENTORY=./inventory/production
+
+# Disable host key checking
+export ANSIBLE_HOST_KEY_CHECKING=False
+
+# Set remote user
+export ANSIBLE_REMOTE_USER=deploy
+
+# Enable verbose mode
+export ANSIBLE_VERBOSITY=2
+```
+
+### View Current Configuration
+
+```bash
+# Show all configuration settings
+ansible-config dump
+
+# Show only changed settings
+ansible-config dump --only-changed
+
+# List all configuration options
+ansible-config list
+
+# View current config file location
+ansible --version
+```
+
+---
+
 ## Ansible Architecture
 
 Ansible's architecture is simple yet powerful. It leverages an agentless design and relies mainly on SSH (for Linux/UNIX systems) or WinRM (for Windows) to communicate with managed hosts. The key architectural components help define its scalability, modularity, and reliability.
